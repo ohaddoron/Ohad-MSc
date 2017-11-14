@@ -52,7 +52,7 @@ def load_position(rdr,mdata,pos):
 
     '''
     img = ()
-    for TP in tqdm(range(mdata.num_time_points)):
+    for TP in range(mdata.num_time_points):
         for plane in range(mdata.num_planes):
             if plane == 0:
                 tmp_img = rdr.read(z=plane, t=TP, series=pos)
@@ -78,8 +78,17 @@ def convert_images(settings,params):
 
 
 def dumpImages2File(fname,I):
-    with open(fname + '.pkl','w') as f:
-        pickle.dump(I,f)
+    n_pos = np.shape(I)[0]
+    for pos in range(n_pos):
+        pathname = os.path.join(fname,'position_' + str(pos))
+        os.makedirs(pathname)
+        position_data = I[pos]
+        nTP = np.shape(position_data)[0]
+        for TP in range(nTP):
+            TP_data = np.asanyarray(position_data[TP])
+            filename = os.path.join(pathname,'TP_'+str(TP)) + '.pkl'
+            with open(filename,'w') as f:
+                pickle.dump(TP_data,f)
 
 def loadImagesFromFile ( settings ):
 
@@ -89,7 +98,7 @@ def loadImagesFromFile ( settings ):
             with open(fname,'r') as f:
                 if not 'data' in locals():
                     data = loaded_data()
-                data.images += (pickle.load(f),)
+                data.images += (np.load(f),)
                 data.names += (file,)
 
     return data
