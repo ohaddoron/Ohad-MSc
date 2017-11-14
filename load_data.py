@@ -53,7 +53,6 @@ def load_single_file ( settings,rdr,mdata ):
 def load_position(rdr,mdata,pos):
     '''
     loads all planes in all time points for a single position.
-
     '''
 
     for TP in range(mdata.num_time_points):

@@ -9,7 +9,7 @@ class settings:
         self.file_format = 'czi'
         self.fraction_cores = 3.0/8.0
         self.parallel = True
-        self.load_operation = 'convert' # load or convert
+        self.load_operation = 'load' # load or convert
 
 class params:
     def __init__(self):
