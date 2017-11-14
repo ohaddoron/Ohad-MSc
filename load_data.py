@@ -7,6 +7,7 @@ import multiprocessing
 from joblib import Parallel, delayed
 import pickle
 from tqdm import tqdm
+from PIL import Image
 
 class loaded_data:
     def __init__(self):
@@ -34,14 +35,17 @@ def load_single_file ( settings,rdr,mdata ):
     init: 
     '''
     num_cores = multiprocessing.cpu_count()
-    if settings.parallel:
-        # Parallel is not working for an unknown reason. - 11/14/17 OD
-        I = Parallel(n_jobs=int(np.floor((settings.fraction_cores) * num_cores)))(
-            delayed(load_position)(rdr,mdata,pos) for pos in range(mdata.num_pos))
-    else:
-        I = ()
-        for pos in tqdm(range(mdata.num_pos)):
-            I += (load_position(rdr,mdata,pos),)
+
+
+    for pos in tqdm(range(mdata.num_pos)):
+        img = load_position(rdr,mdata,pos)
+        if 'I' not in locals():
+            I = img
+        else:
+            try:
+                I = np.concatenate((I,img[...,np.newaxis]),axis = 4)
+            except:
+                I = np.concatenate((I[...,np.newaxis],img[...,np.newaxis]), axis =4)
     return I
 
 
@@ -51,14 +55,27 @@ def load_position(rdr,mdata,pos):
     loads all planes in all time points for a single position.
 
     '''
-    img = ()
+
     for TP in range(mdata.num_time_points):
         for plane in range(mdata.num_planes):
+            I = rdr.read(z=plane, t=TP, series=pos)
+            if len(np.shape(I)) > 2:
+                I = rdr.read(z=plane, t=TP, series=pos)[:,:,0]
             if plane == 0:
-                tmp_img = rdr.read(z=plane, t=TP, series=pos)
+                tmp_img = I
             else:
-                tmp_img = np.dstack((tmp_img, rdr.read(z=plane, t=TP, series=pos)))
-        img += (tmp_img,)
+                try:
+                    tmp_img = np.concatenate(
+                        (tmp_img, I[..., np.newaxis]),axis=2)
+                except:
+                    tmp_img = np.concatenate((tmp_img[...,np.newaxis], I[...,np.newaxis]),axis=2)
+        if not 'img' in locals():
+            img = tmp_img
+        else:
+            try:
+                img = np.concatenate((img,tmp_img[...,np.newaxis]),axis=3)
+            except:
+                img = np.concatenate((img[...,np.newaxis],tmp_img[...,np.newaxis]),axis=3)
     return img
 
 def convert_images(settings,params):
@@ -78,20 +95,20 @@ def convert_images(settings,params):
 
 
 def dumpImages2File(fname,I):
-    n_pos = np.shape(I)[0]
-    for pos in range(n_pos):
-        pathname = os.path.join(fname,'position_' + str(pos))
-        os.makedirs(pathname)
-        position_data = I[pos]
-        nTP = np.shape(position_data)[0]
-        for TP in range(nTP):
-            TP_data = np.asanyarray(position_data[TP])
-            filename = os.path.join(pathname,'TP_'+str(TP)) + '.pkl'
-            with open(filename,'w') as f:
-                pickle.dump(TP_data,f)
+    filename = fname +'.pkl'
+    with open(filename,'w') as f:
+        pickle.dump(I,f)
 
 def loadImagesFromFile ( settings ):
-
+    '''
+    the data return is a tuple with all image data loaded into in.
+    the dimensions are sorted in the following order:
+    1st - X
+    2nd - Y
+    3rd - Z
+    4th - T
+    5th - P
+    '''
     for file in os.listdir(settings.path2data):
         fname = os.path.join(settings.path2data,file)
         if file.endswith('pkl'):

@@ -1,5 +1,8 @@
 import load_data
 import load_settings_params
+import numpy as np
+from matplotlib import pyplot as plt
+import feature_extraction
 
 if __name__ == '__main__':
     settings = load_settings_params.settings()
@@ -19,4 +22,4 @@ if __name__ == '__main__':
         fifth layer - Z
         '''
         data = load_data.loadImagesFromFile(settings)
-    a = 1
+    feature_extraction._base(settings,params,data)
