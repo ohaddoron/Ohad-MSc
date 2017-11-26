@@ -11,6 +11,7 @@ class settings:
         self.fraction_cores = 3.0/8.0
         self.parallel = True
         self.load_operation = 'load' # load or convert
+        self.visualize_node_detection = False
 
 class params:
     def __init__(self):

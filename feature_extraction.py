@@ -5,16 +5,53 @@ import matplotlib.pyplot as plt
 from skimage.feature import peak_local_max
 from skimage import exposure
 from scipy.signal import medfilt2d
+from tqdm import tqdm
 
 def _base ( settings, params, data):
-    for cur_data in data.images:
-        _, _,_,nTP = np.shape(cur_data)
-        for TP in range(nTP):
-                I = cur_data[:,:,:,TP]
-                nodes,coordinates = extract_nodes(settings,params,I)
-                a = 1
+    nodes,coordinates = extract_nodes(settings,params,data)
+    match_nodes(nodes,coordinates)
 
-def extract_nodes ( settings, params, I ):
+def match_nodes ( nodes,coordinates ):
+    nTP = len(nodes)
+    m_score = ()
+    z_score = ()
+    for TP in range(nTP - 1):
+        tmp_m,tmp_z = node_scores(nodes[TP],nodes[TP+1])
+        m_score += (tmp_m,)
+        z_score += (tmp_z,)
+    return m_score,z_score
+def node_scores ( nodes1, nodes2 ):
+    m_score = np.zeros(len(nodes1),len(nodes2))
+    z_score = np.zeros(len(nodes1),len(nodes2))
+    for i,node1 in enumerate(nodes1):
+        for j,node2 in enumerate(nodes2):
+            m_norm,z_norm = compare_images(node1,node2)
+            m_score[i,j] = m_norm
+            z_score[i,j] = z_norm
+    return m_score,z_score
+
+def compare_images(img1, img2):
+    diff = img1 - img2  # elementwise for scipy arrays
+    m_norm = sum(abs(diff))  # Manhattan norm
+    z_norm = norm(diff.ravel(), 0)  # Zero norm
+    return (m_norm, z_norm)
+def extract_nodes ( settings,params,data):
+    '''init'''
+    nodes = () # Initialize nodes and gather them in tuple
+    coordinates = () # Initialize coordinates and gather them in tuple
+
+    _,_,_,nTP = np.shape(data.images[0]) # number of time points in file; # currently assuming a single file
+
+    for TP in tqdm(range(nTP)):
+        '''TP cycle'''
+        I = data.images[0][:,:,:,TP]
+        tmp_nodes,tmp_coordinates = extract_nodes_single_TP(settings,params,I)
+        nodes += (tmp_nodes,)
+        coordinates += (tmp_coordinates,)
+    return nodes,coordinates
+
+
+def extract_nodes_single_TP ( settings, params, I ):
     '''
     Input - I is assumed to a Z stack of a single time point - i.e., 3D image
     '''
@@ -31,29 +68,28 @@ def extract_nodes ( settings, params, I ):
 
         coordinates = coordinates_distance(params, coordinates)
 
-        '''
-        fig, axes = plt.subplots(1, 3, figsize=(8, 3), sharex=True, sharey=True,
-                                 subplot_kw={'adjustable': 'box-forced'})
-        
-        ax = axes.ravel()
-        ax[0].imshow(img[:,:,i], cmap=plt.cm.gray)
-        ax[0].axis('off')
-        ax[0].set_title('Original')
+        if settings.visualize_node_detection:
+            fig, axes = plt.subplots(1, 3, figsize=(8, 3), sharex=True, sharey=True,
+                                     subplot_kw={'adjustable': 'box-forced'})
+            ax = axes.ravel()
+            ax[0].imshow(img[:,:,i], cmap=plt.cm.gray)
+            ax[0].axis('off')
+            ax[0].set_title('Original')
 
-        ax[1].imshow(image_max, cmap=plt.cm.gray)
-        ax[1].axis('off')
-        ax[1].set_title('Maximum filter')
+            ax[1].imshow(image_max, cmap=plt.cm.gray)
+            ax[1].axis('off')
+            ax[1].set_title('Maximum filter')
 
-        ax[2].imshow(img[:,:,i], cmap=plt.cm.gray)
-        ax[2].autoscale(False)
-        #idx = np.in1d(coordinates[:,2],i)
-        ax[2].scatter(coordinates[:, 1], coordinates[:, 0],facecolors = 'none',edgecolors='r')
-        ax[2].axis('off')
-        ax[2].set_title('Peak local max')
+            ax[2].imshow(img[:,:,i], cmap=plt.cm.gray)
+            ax[2].autoscale(False)
+            #idx = np.in1d(coordinates[:,2],i)
+            ax[2].scatter(coordinates[:, 1], coordinates[:, 0],facecolors = 'none',edgecolors='r')
+            ax[2].axis('off')
+            ax[2].set_title('Peak local max')
 
-        fig.tight_layout()
-        plt.show()
-        '''
+            fig.tight_layout()
+            plt.show()
+
 
 
         for k in range(np.shape(coordinates)[0]):
@@ -65,6 +101,7 @@ def extract_nodes ( settings, params, I ):
             if min_x > 0 and min_y > 0 and max_x < int(width) and max_y < int(height):
                 nodes += (img[min_x:max_x,min_y:max_y,i],)
     return nodes,coordinates
+
 
 
 def remove_artifacts ( I,coordinates ):
