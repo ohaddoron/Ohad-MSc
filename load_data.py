@@ -25,7 +25,7 @@ class metadata:
         self.num_X = pixels.SizeX
         self.num_Y = pixels.SizeY
 
-def load_single_file ( settings,rdr,mdata ):
+def load_single_file ( settings,rdr,mdata,file):
     '''
     loads a single data file
     Inputs: settings - a structure containing all required settings for run. Created using the load_settings_params module
@@ -34,19 +34,13 @@ def load_single_file ( settings,rdr,mdata ):
     '''
     init: 
     '''
-    num_cores = multiprocessing.cpu_count()
-
-
+    num_cores = int(np.floor(multiprocessing.cpu_count()/2))
     for pos in tqdm(range(mdata.num_pos)):
         img = load_position(rdr,mdata,pos)
-        if 'I' not in locals():
-            I = img
-        else:
-            try:
-                I = np.concatenate((I,img[...,np.newaxis]),axis = 4)
-            except:
-                I = np.concatenate((I[...,np.newaxis],img[...,np.newaxis]), axis =4)
-    return I
+        new_name = os.path.join(settings.path2data, file.partition('.')[0] + ' pos=' + str(pos))
+        dumpImages2File(new_name, img)
+        del img
+    return
 
 
 
@@ -79,24 +73,19 @@ def load_position(rdr,mdata,pos):
 
 def convert_images(settings,params):
     javabridge.start_vm(class_path=bioformats.JARS)
-    I = ()
     # currently assuming only 1 channel of interest 12/11/17 - OD
     for file in os.listdir(settings.path2data):
         if file.endswith(settings.file_format):
             fname = os.path.join(settings.path2data, file)
             rdr = bioformats.ImageReader(path=fname)
             mdata = metadata(bioformats.get_omexml_metadata(fname))
+            load_single_file(settings,rdr,mdata,file)
 
-            I = load_single_file(settings,rdr,mdata)
-            new_name = os.path.join(settings.path2data,file.partition('.')[0])
-            dumpImages2File(new_name,I)
 
 
 
 def dumpImages2File(fname,I):
-    filename = fname +'.pkl'
-    with open(filename,'w') as f:
-        pickle.dump(I,f)
+        np.save(fname,I)
 
 def loadImagesFromFile ( settings ):
     '''
@@ -108,14 +97,12 @@ def loadImagesFromFile ( settings ):
     4th - T
     5th - P
     '''
+    data = loaded_data()
     for file in os.listdir(settings.path2data):
         fname = os.path.join(settings.path2data,file)
-        if file.endswith('pkl'):
-            with open(fname,'r') as f:
-                if not 'data' in locals():
-                    data = loaded_data()
-                data.images += (np.load(f),)
-                data.names += (file,)
+        if file.endswith(settings.save_format):
+            data.images += (np.load(os.path.join(settings.path2data,file)),)
+            data.names += (file,)
 
     return data
 
