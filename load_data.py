@@ -18,12 +18,12 @@ class metadata:
     def __init__(self,omexmlstr):
         o = bioformats.OMEXML(omexmlstr)
         pixels = o.image().Pixels
-        self.num_pos = o.get_image_count()
-        self.num_channels = pixels.get_channel_count()
-        self.num_planes = pixels.SizeZ
-        self.num_time_points = pixels.SizeT
-        self.num_X = pixels.SizeX
-        self.num_Y = pixels.SizeY
+        self.num_pos = o.get_image_count() # number of positions in file
+        self.num_channels = pixels.get_channel_count() # number of channels in file
+        self.num_planes = pixels.SizeZ # number of different planes (size of Z stack)
+        self.num_time_points = pixels.SizeT # number of time points taken
+        self.num_X = pixels.SizeX # number of pixels in the X dimension
+        self.num_Y = pixels.SizeY # number of pixels in the Y dimension
 
 def load_single_file ( settings,rdr,mdata,file):
     '''
@@ -34,11 +34,11 @@ def load_single_file ( settings,rdr,mdata,file):
     '''
     init: 
     '''
-    num_cores = int(np.floor(multiprocessing.cpu_count()/2))
-    for pos in tqdm(range(mdata.num_pos)):
-        img = load_position(rdr,mdata,pos)
-        new_name = os.path.join(settings.path2data, file.partition('.')[0] + ' pos=' + str(pos))
-        dumpImages2File(new_name, img)
+    # num_cores = int(np.floor(multiprocessing.cpu_count()/2))
+    for pos in tqdm(range(mdata.num_pos)): # cycle through all positions, load position from meta file and dump it into file for later use
+        img = load_position(rdr,mdata,pos) # loads all Z-stacks for current position
+        new_name = os.path.join(settings.path2data, file.partition('.')[0] + ' pos=' + str(pos)) # the new name is composed of the old name and the current position
+        dumpImages2File(new_name, img) # dumps the Z-stacks into a single file depicting a specific location
         del img
     return
 
@@ -49,10 +49,10 @@ def load_position(rdr,mdata,pos):
     loads all planes in all time points for a single position.
     '''
 
-    for TP in range(mdata.num_time_points):
-        for plane in range(mdata.num_planes):
-            I = rdr.read(z=plane, t=TP, series=pos)
-            if len(np.shape(I)) > 2:
+    for TP in range(mdata.num_time_points): # cycle through time points
+        for plane in range(mdata.num_planes): # cycle through planes
+            I = rdr.read(z=plane, t=TP, series=pos) # read current plane at current time point (position is already broken down)
+            if len(np.shape(I)) > 2: # if this is the first image we are currently reading
                 I = rdr.read(z=plane, t=TP, series=pos)[:,:,0]
             if plane == 0:
                 tmp_img = I

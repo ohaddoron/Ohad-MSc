@@ -6,35 +6,59 @@ from skimage.feature import peak_local_max
 from skimage import exposure
 from scipy.signal import medfilt2d
 from tqdm import tqdm
+import cv2
+import imutils
 
 def _base ( settings, params, data):
     nodes,coordinates = extract_nodes(settings,params,data)
-    match_nodes(nodes,coordinates)
+    match_nodes(nodes,coordinates,data)
 
-def match_nodes ( nodes,coordinates ):
+def match_nodes ( nodes,coordinates,data ):
     nTP = len(nodes)
     m_score = ()
     z_score = ()
     for TP in range(nTP - 1):
-        tmp_m,tmp_z = node_scores(nodes[TP],nodes[TP+1])
-        m_score += (tmp_m,)
-        z_score += (tmp_z,)
-    return m_score,z_score
-def node_scores ( nodes1, nodes2 ):
-    m_score = np.zeros(len(nodes1),len(nodes2))
-    z_score = np.zeros(len(nodes1),len(nodes2))
-    for i,node1 in enumerate(nodes1):
-        for j,node2 in enumerate(nodes2):
-            m_norm,z_norm = compare_images(node1,node2)
-            m_score[i,j] = m_norm
-            z_score[i,j] = z_norm
+        node_detector(nodes[TP],coordinates,data.images[0][:,:,:,TP+1])
+        # tmp_m,tmp_z = node_scores(nodes[TP],nodes[TP+1])
+        # m_score += (tmp_m,)
+        # z_score += (tmp_z,)
     return m_score,z_score
 
-def compare_images(img1, img2):
-    diff = img1 - img2  # elementwise for scipy arrays
-    m_norm = sum(abs(diff))  # Manhattan norm
-    z_norm = norm(diff.ravel(), 0)  # Zero norm
-    return (m_norm, z_norm)
+def node_detector ( nodes,coords, Z_Stack ):
+    for node in nodes:
+        for k in range(Z_Stack.shape[2]):
+            I = np.round(Z_Stack[:,:,k]/np.max(Z_Stack[:,:,k]) * 255)
+            I = I.astype(np.uint8)
+            node = np.round(node / np.max(node) * 255)
+            node = node.astype(np.uint8)
+            res = cv2.matchTemplate(Z_Stack[:,:,k].astype(np.uint8),node.astype(np.uint8),cv2.TM_CCOEFF_NORMED )
+            w,h = node.shape[:2]
+            (_, _, minLoc, maxLoc) = cv2.minMaxLoc(res)
+
+            topLeft = maxLoc
+            botRight = (topLeft[0] + w, topLeft[1] + h)
+            roi = I[topLeft[1]:botRight[1], topLeft[0]:botRight[0]]
+            mask = np.zeros(I.shape, dtype="uint8")
+            I = cv2.addWeighted(I, 0.25, mask, 0.75, 0)
+            I[topLeft[1]:botRight[1], topLeft[0]:botRight[0]] = roi
+            cv2.imshow("I", imutils.resize(I, height=650))
+            cv2.imshow("node", node)
+
+            # threshold = 0.8
+            # loc = np.where(res >= threshold)
+            a = 1
+
+
+def node_scores ( nodes1, nodes2 ):
+    m_score = np.zeros((len(nodes1),len(nodes2)))
+    z_score = np.zeros((len(nodes1),len(nodes2)))
+    for i,node1 in enumerate(nodes1):
+        for j,node2 in enumerate(nodes2):
+            pass
+
+    return m_score,z_score
+
+
 def extract_nodes ( settings,params,data):
     '''init'''
     nodes = () # Initialize nodes and gather them in tuple
@@ -42,7 +66,7 @@ def extract_nodes ( settings,params,data):
 
     _,_,_,nTP = np.shape(data.images[0]) # number of time points in file; # currently assuming a single file
 
-    for TP in tqdm(range(nTP)):
+    for TP in tqdm(range(2)): # nTP instead of 2
         '''TP cycle'''
         I = data.images[0][:,:,:,TP]
         tmp_nodes,tmp_coordinates = extract_nodes_single_TP(settings,params,I)

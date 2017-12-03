@@ -10,7 +10,7 @@ class settings:
         self.save_format = 'npy'
         self.fraction_cores = 3.0/8.0
         self.parallel = True
-        self.load_operation = 'load' # load or convert
+        self.load_operation = 'convert' # load or convert
         self.visualize_node_detection = False
 
 class params:
@@ -18,7 +18,7 @@ class params:
         self.max_filter_kernel_size = 15
         self.med_filter_kernel_size = 5
         self.peak_detector_size = 15
-        self.dist_threshold = 15
-        self.node_size = 5
+        self.dist_threshold = 5
+        self.node_size = 15
 
 
