@@ -1,5 +1,5 @@
 import os
-
+# %% 
 class settings:
     def __init__(self):
 
@@ -13,12 +13,16 @@ class settings:
         self.load_operation = 'convert' # load or convert
         self.visualize_node_detection = False
 
+# %%
 class params:
     def __init__(self):
-        self.max_filter_kernel_size = 15
-        self.med_filter_kernel_size = 5
-        self.peak_detector_size = 15
+        self.max_filter_kernel_size = 3
+        self.med_filter_kernel_size = 3
+        self.peak_detector_size = 10
         self.dist_threshold = 5
         self.node_size = 15
 
 
+# %% 
+def load():
+    return settings(),params()

@@ -8,11 +8,13 @@ from scipy.signal import medfilt2d
 from tqdm import tqdm
 import cv2
 import imutils
-
+# %% 
 def _base ( settings, params, data):
+
+
     nodes,coordinates = extract_nodes(settings,params,data)
     match_nodes(nodes,coordinates,data)
-
+# %% 
 def match_nodes ( nodes,coordinates,data ):
     nTP = len(nodes)
     m_score = ()
@@ -23,7 +25,7 @@ def match_nodes ( nodes,coordinates,data ):
         # m_score += (tmp_m,)
         # z_score += (tmp_z,)
     return m_score,z_score
-
+# %%
 def node_detector ( nodes,coords, Z_Stack ):
     for node in nodes:
         for k in range(Z_Stack.shape[2]):
@@ -48,7 +50,7 @@ def node_detector ( nodes,coords, Z_Stack ):
             # loc = np.where(res >= threshold)
             a = 1
 
-
+# %%
 def node_scores ( nodes1, nodes2 ):
     m_score = np.zeros((len(nodes1),len(nodes2)))
     z_score = np.zeros((len(nodes1),len(nodes2)))
@@ -58,15 +60,18 @@ def node_scores ( nodes1, nodes2 ):
 
     return m_score,z_score
 
-
+# %% 
 def extract_nodes ( settings,params,data):
     '''init'''
     nodes = () # Initialize nodes and gather them in tuple
     coordinates = () # Initialize coordinates and gather them in tuple
+    try: # attempt to find how many time points exist
+        _,_,_,nTP = np.shape(data.images[0]) # number of time points in file; # currently assuming a single file
+    except: # if only a single time point exists
+        data.images = (np.expand_dims(data.images[0],axis=4),)
+        nTP = 1
 
-    _,_,_,nTP = np.shape(data.images[0]) # number of time points in file; # currently assuming a single file
-
-    for TP in tqdm(range(2)): # nTP instead of 2
+    for TP in tqdm(range(nTP)):
         '''TP cycle'''
         I = data.images[0][:,:,:,TP]
         tmp_nodes,tmp_coordinates = extract_nodes_single_TP(settings,params,I)
@@ -74,7 +79,7 @@ def extract_nodes ( settings,params,data):
         coordinates += (tmp_coordinates,)
     return nodes,coordinates
 
-
+# %% 
 def extract_nodes_single_TP ( settings, params, I ):
     '''
     Input - I is assumed to a Z stack of a single time point - i.e., 3D image
@@ -86,11 +91,11 @@ def extract_nodes_single_TP ( settings, params, I ):
 
         im_adjusted = exposure.equalize_hist(img[:,:,i])
         im_adjusted = medfilt2d(im_adjusted,kernel_size=params.med_filter_kernel_size)
-        image_max = ndi.maximum_filter(im_adjusted, size=params.max_filter_kernel_size, mode='constant')
-        coordinates = peak_local_max(im_adjusted, min_distance=params.peak_detector_size)
+        image_max = ndi.maximum_filter(img, size=params.max_filter_kernel_size, mode='constant')
+        coordinates = peak_local_max(image_max, min_distance=params.peak_detector_size)
         #coordinates = remove_artifacts(im_adjusted,coordinates)
 
-        coordinates = coordinates_distance(params, coordinates)
+        # coordinates = coordinates_distance(params, coordinates)
 
         if settings.visualize_node_detection:
             fig, axes = plt.subplots(1, 3, figsize=(8, 3), sharex=True, sharey=True,
@@ -100,7 +105,7 @@ def extract_nodes_single_TP ( settings, params, I ):
             ax[0].axis('off')
             ax[0].set_title('Original')
 
-            ax[1].imshow(image_max, cmap=plt.cm.gray)
+            ax[1].imshow(image_max[:,:,i], cmap=plt.cm.gray)
             ax[1].axis('off')
             ax[1].set_title('Maximum filter')
 
@@ -127,7 +132,7 @@ def extract_nodes_single_TP ( settings, params, I ):
     return nodes,coordinates
 
 
-
+# %%
 def remove_artifacts ( I,coordinates ):
     i = 0
     coordinates = list(coordinates)
@@ -137,6 +142,8 @@ def remove_artifacts ( I,coordinates ):
         else:
             i+=1
     return np.asanyarray(coordinates)
+
+# %%
 def coordinates_distance ( params,coordinates ):
     num_coordinates = np.shape(coordinates)[0]
     i = 0

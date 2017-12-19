@@ -8,6 +8,7 @@ from joblib import Parallel, delayed
 import pickle
 from tqdm import tqdm
 from PIL import Image
+from scipy.io import savemat
 
 class loaded_data:
     def __init__(self):
@@ -62,6 +63,9 @@ def load_position(rdr,mdata,pos):
                         (tmp_img, I[..., np.newaxis]),axis=2)
                 except:
                     tmp_img = np.concatenate((tmp_img[...,np.newaxis], I[...,np.newaxis]),axis=2)
+        max_val = np.max(tmp_img)
+        min_val = np.abs(np.min(tmp_img))
+        tmp_img[tmp_img<0] = tmp_img[tmp_img<0] + max_val + min_val
         if not 'img' in locals():
             img = tmp_img
         else:
@@ -74,7 +78,8 @@ def load_position(rdr,mdata,pos):
 def convert_images(settings,params):
     javabridge.start_vm(class_path=bioformats.JARS)
     # currently assuming only 1 channel of interest 12/11/17 - OD
-    for file in os.listdir(settings.path2data):
+    files = os.listdir(settings.path2data)
+    for file in files:
         if file.endswith(settings.file_format):
             fname = os.path.join(settings.path2data, file)
             rdr = bioformats.ImageReader(path=fname)
