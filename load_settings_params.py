@@ -10,17 +10,19 @@ class settings:
         self.save_format = 'npy'
         self.fraction_cores = 3.0/8.0
         self.parallel = True
-        self.load_operation = 'convert' # load or convert
+        self.load_operation = 'load' # load or convert
         self.visualize_node_detection = False
 
 # %%
 class params:
     def __init__(self):
-        self.max_filter_kernel_size = 3
-        self.med_filter_kernel_size = 3
-        self.peak_detector_size = 10
-        self.dist_threshold = 5
-        self.node_size = 15
+        self.seed = 1
+        self.node_size = 15 # number of pixels to extract in the x and y directions
+        self.thresh = 0.6 # intensity threshold to be concidered as a cross section (node)
+        self.num_nodes_generate = int(1e5)
+        self.template_size_x = 0.025 # fraction of the original image size. fraction may vary for different densities
+        self.template_size_y = 0.025 # fraction of the original image size. fraction may vary for different densities
+        self.template_size_z = 0.025 # fraction of the original image size. fraction may vary for different densities
 
 
 # %% 
