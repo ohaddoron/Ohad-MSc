@@ -1,7 +1,11 @@
 import numpy as np
 import random
 from matplotlib import pyplot as plt
-
+from scipy import ndimage as ndi
+from skimage.feature import peak_local_max
+import scipy.ndimage.filters as filters
+from scipy.io import savemat
+from tqdm import tqdm
 # %%
 
 def _base ( settings, params, data):
@@ -14,14 +18,79 @@ def _base ( settings, params, data):
     n_images = len(data.images)
     for i in range(n_images): # the search is performed for each image individually (for the first time point)
         img = data.images[i]
-        img -= np.mean(img) # subtract the mean of the image to start
+        # img -= np.mean(img) # subtract the mean of the image to start
 
-        templates = generate_templates(params,img)
+        # templates = generate_templates(params,img)
+        coordinates = detect_peaks(img)
+        # seed = [[x[5][3],y[5][3],5L]]
+        # region_growing_3D(params,img,seed)
+
+
+        MASKS = region_growing_3D(params,img,coordinates)
+
         flag = 1
 
-# %%
 
 
+
+def region_growing_3D ( params, img, seeds,intensity_threshold=0.04,distance_threshold=20 ):
+    '''
+    :param params: parameter structure
+    :param img: image to perform region growing on
+    :param seed: seed to start the region growing algorithm
+    :return: coordinates of blob matching current seed
+    '''
+    seeds = list(seeds)
+    MASKS = ()
+    for seed in tqdm(seeds):
+        # seed = seeds.pop()
+        Q = [seed]
+        r, c, p = np.shape(img)
+        J = np.zeros((r, c, p))
+        regVal = img[seed[0],seed[1],seed[2]]
+        while Q:
+            cur_seed = Q.pop()
+            xv = cur_seed[0];
+            yv = cur_seed[1];
+            zv = cur_seed[2]
+            J[xv,yv,zv] = 1
+            for i in range(-1,1):
+                for j in range(-1,1):
+                    for k in range(-1,1):
+                        if (xv + i >= 0 and xv+1 < r
+                            and yv + j >= 0 and yv + j < c
+                            and zv + k >= 0 and zv + k < p
+                            and any([i,j,k])
+                            and J[xv+i,yv+j,zv+k] == 0
+                            and img[xv+i,yv+j,zv+k] <= regVal + intensity_threshold
+                            and img[xv+i,yv+j,zv+k] >= regVal - intensity_threshold
+                            and np.sqrt((seed[0] - xv+i)**2 + (seed[1]-yv+j)**2 + (seed[2]-zv+k)**2) <= distance_threshold):
+                                J[xv+i,yv+j,zv+k] = 1
+                                Q.append([xv+i,yv+j,zv+k])
+                                regVal = np.mean(img[np.where(J==1)])
+        for coord in np.transpose(np.where(J)):
+            idx2remove = np.where([np.array_equal(coord,sub_seed) for sub_seed in seeds])
+            if len(idx2remove[0]) > 0:
+                seeds.pop(idx2remove[0])
+
+        # if np.shape(np.where(J))[1] > 50:
+        MASKS += (np.transpose(np.where(J)),)
+    np.save('../results/DIST_THRESH=%2.2f_INTENSITY_THRESH=%2.2f' % (distance_threshold,intensity_threshold),MASKS)
+    return MASKS
+
+
+def detect_peaks(image,neighborhood_size=20):
+
+    # image_max = ndi.maximum_filter(image, size=neighborhood_size, mode='constant')
+    for plane in range(image.shape[-1]):
+        tmp_coordinates = peak_local_max(image[:,:,plane], min_distance=20)
+        tmp_coordinates = [np.concatenate((coord, [plane])) for coord in tmp_coordinates]
+        if 'coordinates' not in locals():
+            coordinates = tmp_coordinates
+        else:
+            coordinates = np.vstack((coordinates,tmp_coordinates))
+
+    return coordinates
 
 def generate_templates ( params,img ):
     '''
@@ -99,7 +168,7 @@ def extract_template ( params , img,template_size_0,template_size_1 ):
         # validate template
         validation_set = np.concatenate((template[:,0],template[:,-1],
                                          np.transpose(template[0,:]),np.transpose(template[-1,:])),axis=0)
-        if np.mean(validation_set < 0) > 0.7: # if we have to many negative values
+        if np.mean(validation_set < 0) > 0.7: # if we have too many negative values
             # on the edges and we have not increase in the previous iteration
             template_size_0 -= 1
             template_size_1 -= 1

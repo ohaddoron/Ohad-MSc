@@ -26,3 +26,5 @@ if __name__ == '__main__':
         '''
         data = load_data.loadImagesFromFile(settings)
         feature_extraction._base(settings,params,data)
+
+

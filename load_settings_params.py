@@ -22,7 +22,8 @@ class params:
         self.num_nodes_generate = int(1e5)
         self.template_size_x = 0.025 # fraction of the original image size. fraction may vary for different densities
         self.template_size_y = 0.025 # fraction of the original image size. fraction may vary for different densities
-        self.template_size_z = 0.2 # fraction of the original image size. fraction may vary for different densities
+        self.template_size_z = 0.1 # fraction of the original image size. fraction may vary for different densities
+        self.RG_thresh = 10
 
 
 # %% 
