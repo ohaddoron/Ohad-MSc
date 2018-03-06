@@ -15,9 +15,9 @@ def _base ( settings, params, data):
     :param data: data loaded from file
     :return:
     '''
-    n_images = len(data.images)
-    for i in range(n_images): # the search is performed for each image individually (for the first time point)
-        img = data.images[i]
+
+    for i in range(len(data['images'])): # the search is performed for each image individually (for the first time point)
+        img = data['images'][i]
         # img -= np.mean(img) # subtract the mean of the image to start
 
         # templates = generate_templates(params,img)

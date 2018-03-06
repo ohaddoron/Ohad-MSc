@@ -1,4 +1,4 @@
-import load_data
+from load_data import converter,loader
 import load_settings_params
 import numpy as np
 from matplotlib import pyplot as plt
@@ -12,8 +12,8 @@ if __name__ == '__main__':
         '''
         convert czi files into pkl files of images
         '''
-        load_data.convert_images(settings,params)
-   
+        converter(settings,params)
+
     elif settings.load_operation == 'load':
          # %% load
         '''
@@ -24,7 +24,8 @@ if __name__ == '__main__':
         fourth layer - Y
         fifth layer - Z
         '''
-        data = load_data.loadImagesFromFile(settings)
+
+        data = loader().load_images(settings)
         feature_extraction._base(settings,params,data)
 
 

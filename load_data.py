@@ -3,111 +3,89 @@ import bioformats
 import os
 import numpy as np
 from matplotlib import pyplot as plt
-import multiprocessing
-from joblib import Parallel, delayed
-import pickle
 from tqdm import tqdm
-from PIL import Image
-from scipy.io import savemat
 
-class loaded_data:
-    def __init__(self):
-        self.images = ()
-        self.names = ()
 
-class metadata:
-    def __init__(self,omexmlstr):
+
+#%%
+class converter:
+    #%%
+    def __init__(self,settings,params):
+        self.convert_images(settings,params)
+    #%%
+    def convert_images(self,settings,params):
+        javabridge.start_vm(class_path=bioformats.JARS)
+        # currently assuming only 1 channel of interest 12/11/17 - OD
+        for file in os.listdir(settings.path2data):
+            if file.endswith(settings.file_format):
+                fname = os.path.join(settings.path2data, file)
+                self.extract(settings,fname)
+    #%%            
+    def get_metadata(self,omexmlstr):
         o = bioformats.OMEXML(omexmlstr)
         pixels = o.image().Pixels
-        self.num_pos = o.get_image_count() # number of positions in file
-        self.num_channels = pixels.get_channel_count() # number of channels in file
-        self.num_planes = pixels.SizeZ # number of different planes (size of Z stack)
-        self.num_time_points = pixels.SizeT # number of time points taken
-        self.num_X = pixels.SizeX # number of pixels in the X dimension
-        self.num_Y = pixels.SizeY # number of pixels in the Y dimension
+        metadata = {}
+        metadata['num_pos'] = o.get_image_count() # number of positions in file
+        metadata['num_channels'] = pixels.get_channel_count() # number of channels in file
+        metadata['num_planes'] = pixels.SizeZ # number of different planes (size of Z stack)
+        metadata['num_time_points'] = pixels.SizeT # number of time points taken
+        metadata['num_X'] = pixels.SizeX # number of pixels in the X dimension
+        metadata['num_Y'] = pixels.SizeY # number of pixels in the Y dimension
+        return metadata
+    
+    
+    #%% 
+    def extract ( self, settings,fname):
+        '''
+        loads a single data file
+        Inputs: settings - a structure containing all required settings for run. Created using the load_settings_params module
+        Outputs: 5D array of X,Y,Z,T,P
+        '''
 
-def load_single_file ( settings,rdr,mdata,file):
-    '''
-    loads a single data file
-    Inputs: settings - a structure containing all required settings for run. Created using the load_settings_params module
-    Outputs: 5D array of X,Y,Z,T,P
-    '''
-    '''
-    init: 
-    '''
-    # num_cores = int(np.floor(multiprocessing.cpu_count()/2))
-    for pos in tqdm(range(mdata.num_pos)): # cycle through all positions, load position from meta file and dump it into file for later use
-        img = load_position(rdr,mdata,pos) # loads all Z-stacks for current position
-        new_name = os.path.join(settings.path2data, file.partition('.')[0] + ' pos=' + str(pos)) # the new name is composed of the old name and the current position
-        dumpImages2File(new_name, img) # dumps the Z-stacks into a single file depicting a specific location
-        del img
-    return
-
-
-
-def load_position(rdr,mdata,pos):
-    '''
-    loads all planes in all time points for a single position.
-    '''
-
-    for TP in range(mdata.num_time_points): # cycle through time points
-        for plane in range(mdata.num_planes): # cycle through planes
-            I = rdr.read(z=plane, t=TP, series=pos) # read current plane at current time point (position is already broken down)
-            if len(np.shape(I)) > 2: # if this is the first image we are currently reading
-                I = rdr.read(z=plane, t=TP, series=pos)[:,:,0]
-            if plane == 0:
-                tmp_img = I
+        # init: 
+        metadata = self.get_metadata(bioformats.get_omexml_metadata(fname))
+        rdr = bioformats.ImageReader(path=fname)
+        
+        # num_cores = int(np.floor(multiprocessing.cpu_count()/2))
+        for pos in tqdm(range(metadata['num_pos'])): # cycle through all positions, load position from meta file and dump it into file for later use
+            tmp = self.read_time_points(rdr,metadata,pos)
+            if 'I' not in locals():
+                I = tmp
             else:
-                try:
-                    tmp_img = np.concatenate(
-                        (tmp_img, I[..., np.newaxis]),axis=2)
-                except:
-                    tmp_img = np.concatenate((tmp_img[...,np.newaxis], I[...,np.newaxis]),axis=2)
-        max_val = np.max(tmp_img)
-        min_val = np.abs(np.min(tmp_img))
-        tmp_img[tmp_img<0] = tmp_img[tmp_img<0] + max_val + min_val
-        if not 'img' in locals():
-            img = tmp_img
-        else:
-            try:
-                img = np.concatenate((img,tmp_img[...,np.newaxis]),axis=3)
-            except:
-                img = np.concatenate((img[...,np.newaxis],tmp_img[...,np.newaxis]),axis=3)
-    return img
-
-def convert_images(settings,params):
-    javabridge.start_vm(class_path=bioformats.JARS)
-    # currently assuming only 1 channel of interest 12/11/17 - OD
-    files = os.listdir(settings.path2data)
-    for file in files:
-        if file.endswith(settings.file_format):
-            fname = os.path.join(settings.path2data, file)
-            rdr = bioformats.ImageReader(path=fname)
-            mdata = metadata(bioformats.get_omexml_metadata(fname))
-            load_single_file(settings,rdr,mdata,file)
-
-
-
-
-def dumpImages2File(fname,I):
-        np.save(fname,I)
-
-def loadImagesFromFile ( settings ):
-    '''
-    the data return is a tuple with all image data loaded into in.
-    the dimensions are sorted in the following order:
-    1st - X
-    2nd - Y
-    3rd - Z
-    4th - T
-    5th - P
-    '''
-    data = loaded_data()
-    for file in os.listdir(settings.path2data):
-        fname = os.path.join(settings.path2data,file)
-        if file.endswith(settings.save_format):
-            data.images += (np.load(os.path.join(settings.path2data,file)),)
-            data.names += (file,)
-
-    return data
+                I = np.stack((I,tmp),axis=4)      
+        np.save(os.path.join(settings.path2data,fname.replace('czi','npy')),I)
+    #%%    
+    def read_time_points ( self,rdr, metadata, pos ):
+        for t in range(metadata['num_time_points']):
+            tmp = self.read_planes(rdr,metadata,t,pos)
+            if 'I' not in locals():
+                I = tmp
+            else:
+                if t > 1:
+                    I = np.concatenate((I,tmp[...,np.newaxis]),axis=3)
+                elif t == 1:
+                    I = np.stack((I,tmp),axis=3)
+        I[np.where(I < 0)] -= 2 * I[np.where(I<0)]
+        return I
+    
+    #%% 
+    def read_planes(self,rdr,metadata,t,pos):
+        for z in range(metadata['num_planes']):
+            tmp = rdr.read(z=z,t=t,series=pos)[:,:,0] # this assumes there exists only one channel
+            if 'I' not in locals():
+                I = tmp
+            else:
+                I = np.dstack((I,tmp))
+        return I
+#%%
+class loader:
+    #%%
+    def load_images(self,settings):
+        data = {'names':[],'images':[]}
+        for file in os.listdir(settings.path2data):
+            if file.endswith('.npy'):
+                data['names'].append(file)
+                data['images'].append(np.load(os.path.join(settings.path2data,file)))
+        return data
+    
 
